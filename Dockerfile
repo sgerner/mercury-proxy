@@ -3,6 +3,7 @@ FROM node:20-alpine
 WORKDIR /app
 
 ENV NODE_ENV=production
+ENV PORT=80
 
 # Install dependencies first (caching)
 COPY package*.json ./
@@ -12,11 +13,11 @@ RUN npm ci --omit=dev
 COPY src ./src
 
 # Expose port
-EXPOSE 3000
+EXPOSE 80
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s \
-  CMD wget --no-verbose --tries=1 --spider http://localhost:3000/healthz || exit 1
+  CMD wget --no-verbose --tries=1 --spider http://localhost:80/healthz || exit 1
 
 # Run
 CMD ["node", "src/index.js"]

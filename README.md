@@ -45,7 +45,7 @@ Serverless platforms like Vercel often use dynamic IP addresses. Mercury API req
 ### Step 2: Configure Environment Variables
 Go to the "App Configs" tab and add the following Environment Variables:
 
-*   `PORT`: `3000`
+*   `PORT`: `80` (The Dockerfile sets this default. CapRover expects 80).
 *   `LOG_LEVEL`: `info`
 *   `RELAY_SHARED_SECRET`: (Long random string).
 *   `RELAY_ENCRYPTION_KEY_B64`: (32-byte base64 encoded key).
