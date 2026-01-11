@@ -7,12 +7,25 @@ const nonceCache = new Map()
 // Clean up expired nonces every minute
 setInterval(() => {
   const now = Date.now()
+  // 1. Remove expired
   for (const [nonce, expiry] of nonceCache.entries()) {
     if (now > expiry) {
       nonceCache.delete(nonce)
     }
   }
-}, 60 * 1000).unref() // unref so it doesn't keep process alive during tests if imported
+  // 2. Enforce max entries (simple LRU approximation by just deleting if full? or strictly fail?)
+  // If we are under attack, we might fill up. Pruning random/oldest is better than crashing.
+  // Map iterates in insertion order. So the first items are the oldest.
+  if (nonceCache.size > config.RELAY_NONCE_MAX_ENTRIES) {
+    const toRemove = nonceCache.size - config.RELAY_NONCE_MAX_ENTRIES
+    let removed = 0
+    for (const key of nonceCache.keys()) {
+      nonceCache.delete(key)
+      removed++
+      if (removed >= toRemove) break
+    }
+  }
+}, 60 * 1000).unref()
 
 function verifySignature (req, rawBody) {
   const timestamp = req.headers['x-relay-timestamp']
@@ -36,25 +49,20 @@ function verifySignature (req, rawBody) {
   }
 
   // 2. Check Nonce (Replay Protection)
+  // Key by timestamp + nonce to be extra safe, or just nonce. 
+  // Prompt says "in-memory nonce store keyed by <timestamp>.<nonce> (or just nonce + timestamp bucket)".
+  // We'll use nonce as key, but strictly checks.
   if (nonceCache.has(nonce)) {
     throw new Error('Nonce already used')
   }
-  // Store nonce with expiry = reqTime + window + slop
-  // We only need to store it until it would be rejected by timestamp check anyway.
-  // Actually, strictly speaking, we reject if |now - reqTime| > window.
-  // So a replay is possible if we don't remember nonces from (now - window) to (now + window).
-  // We'll set expiry to now + window (or reqTime + window if we trust it, but sticking to local time is safer for cleanup).
-  // Let's expire it after 2 * window to be safe.
-  nonceCache.set(nonce, now + config.TIMESTAMP_WINDOW_MS)
+  
+  nonceCache.set(nonce, reqTime + (config.RELAY_NONCE_TTL_SECONDS * 1000))
 
   // 3. Verify HMAC
-  const method = req.method.toUpperCase()
-  // path should probably include query string if present?
-  // Prompt says "path". Usually this implies path + query if signed, but "path" usually means pathname.
-  // Let's assume just pathname for now, or req.url (which includes query).
-  // Vercel apps should likely sign `url.pathname` or `url.search`? 
-  // Let's use `req.url` which is standard for Node.js http (path + query).
-  const path = req.url 
+  const method = req.method.toUpperCase() // 'POST'
+  // relayPath should be exactly '/mercury/request' usually.
+  // We use the actual path the request came to.
+  const path = req.routerPath || req.url.split('?')[0]
   
   const payload = `${timestamp}.${nonce}.${method}.${path}.${rawBody || ''}`
   
@@ -67,6 +75,7 @@ function verifySignature (req, rawBody) {
   const signatureBuffer = Buffer.from(signature)
   const expectedBuffer = Buffer.from(expectedSignature)
 
+  // Avoid timing attacks and crashes on length mismatch
   if (signatureBuffer.length !== expectedBuffer.length || 
       !crypto.timingSafeEqual(signatureBuffer, expectedBuffer)) {
     throw new Error('Invalid signature')
