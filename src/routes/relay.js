@@ -134,8 +134,7 @@ async function relayRoutes (fastify, options) {
         headers,
         body: upstreamBody ? JSON.stringify(upstreamBody) : undefined,
         headersTimeout: config.RELAY_CONNECT_TIMEOUT_MS,
-        bodyTimeout: config.RELAY_RESPONSE_TIMEOUT_MS,
-        throwOnError: false
+        bodyTimeout: config.RELAY_RESPONSE_TIMEOUT_MS
       })
 
       // 7. Check Response Size (Guard)
