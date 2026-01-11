@@ -4,7 +4,7 @@ const config = require('./config')
 const app = build({
   logger: {
     level: config.LOG_LEVEL,
-    transport: process.env.NODE_ENV !== 'production' ? {
+    transport: process.env.NODE_ENV === 'development' ? {
       target: 'pino-pretty'
     } : undefined,
     serializers: {
