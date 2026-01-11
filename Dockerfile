@@ -16,8 +16,8 @@ COPY src ./src
 EXPOSE 80
 
 # Health check
-HEALTHCHECK --interval=30s --timeout=3s \
-  CMD wget --no-verbose --tries=1 --spider http://localhost:80/healthz || exit 1
+HEALTHCHECK --interval=30s --timeout=5s --start-period=5s \
+  CMD node src/scripts/healthcheck.js || exit 1
 
 # Run
 CMD ["node", "src/index.js"]
